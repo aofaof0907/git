@@ -196,4 +196,6 @@ int is_promisor_object(const struct object_id *oid);
 int load_idx(const char *path, const unsigned int hashsz, void *idx_map,
 	     size_t idx_size, struct packed_git *p);
 
+int unuse_one_window(struct packed_git *);
+
 #endif

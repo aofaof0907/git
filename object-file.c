@@ -1196,7 +1196,13 @@ static void *map_loose_object_1(struct repository *r, const char *path,
 				close(fd);
 				return NULL;
 			}
-			map = xmmap(NULL, *size, PROT_READ, MAP_PRIVATE, fd, 0);
+			do {
+				map = xmmap_gently(NULL, *size, PROT_READ,
+						MAP_PRIVATE, fd, 0);
+			} while (map == MAP_FAILED && errno == ENOMEM
+				&& unuse_one_window(NULL));
+			if (map == MAP_FAILED)
+				die_errno("%s cannot be mapped", path);
 		}
 		close(fd);
 	}
