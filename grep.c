@@ -655,6 +655,8 @@ static struct grep_expr *compile_pattern_and(struct grep_pat **list)
 	struct grep_expr *x, *y, *z;
 
 	x = compile_pattern_not(list);
+	if (!x)
+		die("Not a valid grep expression");
 	p = *list;
 	if (p && p->token == GREP_AND) {
 		if (!p->next)
