@@ -648,9 +648,12 @@ unsigned char *use_pack(struct packed_git *p,
 			while (packed_git_limit < pack_mapped
 				&& unuse_one_window(p))
 				; /* nothing */
-			win->base = xmmap_gently(NULL, win->len,
-				PROT_READ, MAP_PRIVATE,
-				p->pack_fd, win->offset);
+			do {
+				win->base = xmmap_gently(NULL, win->len,
+					PROT_READ, MAP_PRIVATE,
+					p->pack_fd, win->offset);
+			} while (win->base == MAP_FAILED && errno == ENOMEM
+				&& unuse_one_window(p));
 			if (win->base == MAP_FAILED)
 				die_errno("packfile %s cannot be mapped",
 					  p->pack_name);
