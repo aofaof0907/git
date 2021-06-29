@@ -97,7 +97,11 @@ static int check_packed_git_idx(const char *path, struct packed_git *p)
 		close(fd);
 		return error("index file %s is too small", path);
 	}
-	idx_map = xmmap(NULL, idx_size, PROT_READ, MAP_PRIVATE, fd, 0);
+	do {
+		idx_map = xmmap_gently(NULL, idx_size, PROT_READ, MAP_PRIVATE,
+					fd, 0);
+	} while (idx_map == MAP_FAILED && errno == ENOMEM
+		&& unuse_one_window(p));
 	close(fd);
 
 	ret = load_idx(path, hashsz, idx_map, idx_size, p);
