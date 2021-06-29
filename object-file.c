@@ -1027,8 +1027,14 @@ void *xmmap(void *start, size_t length,
 	int prot, int flags, int fd, off_t offset)
 {
 	void *ret = xmmap_gently(start, length, prot, flags, fd, offset);
-	if (ret == MAP_FAILED)
+	if (ret == MAP_FAILED) {
+#if defined(__linux__)
+		if (errno == ENOMEM)
+			die_errno(_(
+"mmap failed, check sys.vm.max_map_count and/or RLIMIT_DATA"));
+#endif /* OS-specific bits */
 		die_errno(_("mmap failed"));
+	}
 	return ret;
 }
 
