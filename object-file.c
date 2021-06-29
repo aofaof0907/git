@@ -1038,8 +1038,14 @@ void *xmmap(void *start, size_t length,
 	int prot, int flags, int fd, off_t offset)
 {
 	void *ret = xmmap_gently(start, length, prot, flags, fd, offset);
-	if (ret == MAP_FAILED)
+	if (ret == MAP_FAILED) {
+#if defined(__linux__)
+		if (errno == ENOMEM)
+			die_errno(_(
+"mmap failed, check sys.vm.max_map_count and/or RLIMIT_DATA"));
+#endif /* OS-specific bits */
 		die_errno(_("mmap failed"));
+	}
 	return ret;
 }
 
@@ -1209,7 +1215,13 @@ static void *map_loose_object_1(struct repository *r, const char *path,
 				close(fd);
 				return NULL;
 			}
-			map = xmmap(NULL, *size, PROT_READ, MAP_PRIVATE, fd, 0);
+			do {
+				map = xmmap_gently(NULL, *size, PROT_READ,
+						MAP_PRIVATE, fd, 0);
+			} while (map == MAP_FAILED && errno == ENOMEM
+				&& unuse_one_window(NULL));
+			if (map == MAP_FAILED)
+				die_errno("%s cannot be mapped", path);
 		}
 		close(fd);
 	}

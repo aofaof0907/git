@@ -97,7 +97,11 @@ static int check_packed_git_idx(const char *path, struct packed_git *p)
 		close(fd);
 		return error("index file %s is too small", path);
 	}
-	idx_map = xmmap(NULL, idx_size, PROT_READ, MAP_PRIVATE, fd, 0);
+	do {
+		idx_map = xmmap_gently(NULL, idx_size, PROT_READ, MAP_PRIVATE,
+					fd, 0);
+	} while (idx_map == MAP_FAILED && errno == ENOMEM
+		&& unuse_one_window(p));
 	close(fd);
 
 	ret = load_idx(path, hashsz, idx_map, idx_size, p);
@@ -265,7 +269,7 @@ static void scan_windows(struct packed_git *p,
 	}
 }
 
-static int unuse_one_window(struct packed_git *current)
+int unuse_one_window(struct packed_git *current)
 {
 	struct packed_git *p, *lru_p = NULL;
 	struct pack_window *lru_w = NULL, *lru_l = NULL;
@@ -648,9 +652,12 @@ unsigned char *use_pack(struct packed_git *p,
 			while (packed_git_limit < pack_mapped
 				&& unuse_one_window(p))
 				; /* nothing */
-			win->base = xmmap_gently(NULL, win->len,
-				PROT_READ, MAP_PRIVATE,
-				p->pack_fd, win->offset);
+			do {
+				win->base = xmmap_gently(NULL, win->len,
+					PROT_READ, MAP_PRIVATE,
+					p->pack_fd, win->offset);
+			} while (win->base == MAP_FAILED && errno == ENOMEM
+				&& unuse_one_window(p));
 			if (win->base == MAP_FAILED)
 				die_errno("packfile %s cannot be mapped",
 					  p->pack_name);
