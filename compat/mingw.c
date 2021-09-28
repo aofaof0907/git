@@ -555,24 +555,30 @@ static int is_dir_empty(const wchar_t *wpath)
 int mingw_rmdir(const char *pathname)
 {
 	int tries = 0;
-	struct stat sb;
-
 	wchar_t wpathname[MAX_LONG_PATH];
-	if (xutftowcs_long_path(wpathname, pathname) < 0)
-		return -1;
+	struct stat st;
 
 	/*
-	* Contrary to Linux rmdir(), Windows' _wrmdir() and _rmdir()
-	* will remove the directory at the path if it is a symbolic link
-	* which leads to issues when symlinks are used in the .git folder
-	* (in the context of git-repo for instance). So before calling _wrmdir()
-	* we first check if the path is a symbolic link. If it is, we exit
-	* and return the same error as Linux rmdir() in this case (ENOTDIR).
-	*/
-	if (!mingw_lstat(pathname, &sb) && S_ISLNK(sb.st_mode)) {
+	 * Contrary to Linux' `rmdir()`, Windows' _wrmdir() and _rmdir()
+	 * (and `RemoveDirectoryW()`) will attempt to remove the target of a
+	 * symbolic link (if it points to a directory).
+	 *
+	 * This behavior breaks the assumption of e.g. `remove_path()` which
+	 * upon successful deletion of a file will attempt to remove its parent
+	 * directories recursively until failure (which usually happens when
+	 * the directory is not empty).
+	 *
+	 * Therefore, before calling `_wrmdir()`, we first check if the path is
+	 * a symbolic link. If it is, we exit and return the same error as
+	 * Linux' `rmdir()` would, i.e. `ENOTDIR`.
+	 */
+	if (!mingw_lstat(pathname, &st) && S_ISLNK(st.st_mode)) {
 		errno = ENOTDIR;
 		return -1;
 	}
+
+	if (xutftowcs_long_path(wpathname, pathname) < 0)
+		return -1;
 
 	do {
 		if (!_wrmdir(wpathname)) {
@@ -1292,6 +1298,7 @@ int pipe(int filedes[2])
 	return 0;
 }
 
+#ifndef __MINGW64__
 struct tm *gmtime_r(const time_t *timep, struct tm *result)
 {
 	if (gmtime_s(result, timep) == 0)
@@ -1305,6 +1312,7 @@ struct tm *localtime_r(const time_t *timep, struct tm *result)
 		return result;
 	return NULL;
 }
+#endif
 
 char *mingw_strbuf_realpath(struct strbuf *resolved, const char *path)
 {
